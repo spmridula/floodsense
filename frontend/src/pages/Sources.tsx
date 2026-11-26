@@ -15,7 +15,7 @@ export default function Sources() {
       {data && data.length > 0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Source</th><th>Role</th><th>License</th><th>Type</th><th>Verification</th><th>Limitations</th></tr></thead>
+            <thead><tr><th>Source</th><th>Role</th><th>License</th><th>Type</th><th>Verification</th><th>Last checked</th><th>Limitations</th></tr></thead>
             <tbody>
               {data.map((s) => (
                 <tr key={s.key}>
@@ -23,6 +23,7 @@ export default function Sources() {
                   <td>{s.role}</td><td>{s.license}</td>
                   <td><span className={`tag ${s.label}`}>{s.label.replace("_", " ")}</span></td>
                   <td><span className={`tag ${s.verification}`}>{s.verification.replace("_", " ")}</span></td>
+                  <td>{s.last_checked ? new Date(s.last_checked).toLocaleString() : "never"}</td>
                   <td>{s.limitations}</td>
                 </tr>
               ))}

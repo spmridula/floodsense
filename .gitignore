@@ -9,3 +9,4 @@ data/*.db
 data/raw/
 data/cache/
 *.log
+backend/cache/

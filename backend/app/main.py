@@ -1,36 +1,71 @@
+import asyncio
 import logging
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__
 from app.config import get_settings
 from app.logging_setup import configure_logging
-from app.routers import health, meta
+from app.routers import cells, demo, health, hotspots, meta, risk, weather
 
 log = logging.getLogger("floodsense")
 
 
-def _err(status: int, code: str, message: str, request: Request) -> JSONResponse:
+def _err(status: int, code: str, message: str, request: Request, headers: dict | None = None) -> JSONResponse:
     return JSONResponse(
-        status_code=status,
+        status_code=status, headers=headers,
         content={"error": code, "message": message, "request_id": getattr(request.state, "request_id", None)},
     )
+
+
+async def _weather_loop(settings) -> None:
+    """Background refresh at a fixed interval. A failure is logged and recorded, never fatal."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.db import get_engine
+    from app.ingest.weather import OpenMeteoClient
+    from app.services.weather_service import refresh_weather
+
+    def once() -> None:
+        client = OpenMeteoClient(settings.open_meteo_base_url, settings.http_timeout_seconds, settings.http_max_retries,
+                                 settings.weather_past_hours, settings.weather_forecast_hours)
+        with sessionmaker(bind=get_engine())() as session:
+            out = refresh_weather(session, client, settings)
+            log.info("scheduled weather refresh: %s", out.status)
+
+    while True:
+        try:
+            await asyncio.to_thread(once)
+        except Exception:  # noqa: BLE001
+            log.exception("scheduled weather refresh crashed")
+        await asyncio.sleep(settings.refresh_interval_seconds)
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings.log_level)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        task = asyncio.create_task(_weather_loop(settings)) if settings.weather_autorefresh else None
+        yield
+        if task:
+            task.cancel()
+
     app = FastAPI(
-        title="FloodSense API", version=__version__,
+        lifespan=lifespan, title="FloodSense API", version=__version__,
         description="Advisory flood-risk estimation and routing. Not an official warning system.",
     )
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.add_middleware(
-        CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["GET", "POST"], allow_headers=["*"],
+        CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["GET", "POST", "DELETE"], allow_headers=["*"],
     )
 
     @app.middleware("http")
@@ -42,7 +77,7 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exc(request: Request, exc: StarletteHTTPException):
-        return _err(exc.status_code, "http_error", str(exc.detail), request)
+        return _err(exc.status_code, "http_error", str(exc.detail), request, exc.headers)
 
     @app.exception_handler(RequestValidationError)
     async def validation_exc(request: Request, exc: RequestValidationError):
@@ -57,6 +92,11 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(meta.router)
+    app.include_router(weather.router)
+    app.include_router(demo.router)
+    app.include_router(risk.router)
+    app.include_router(cells.router)
+    app.include_router(hotspots.router)
     return app
 
 

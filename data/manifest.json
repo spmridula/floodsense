@@ -1,0 +1,94 @@
+{
+  "artifacts": {
+    "boundary": {
+      "bytes": 29445,
+      "extra": {
+        "area_km2": 609.6,
+        "bounds": [
+          78.2387,
+          17.2916,
+          78.6224,
+          17.5608
+        ],
+        "query": "Hyderabad, Telangana, India",
+        "warnings": []
+      },
+      "licence": "ODbL 1.0 - (c) OpenStreetMap contributors",
+      "name": "boundary",
+      "path": "raw/boundary/boundary.geojson",
+      "python": "3.13.3",
+      "retrieved_at": "2026-10-21T10:47:45.594919+00:00",
+      "sha256": "716e0d9e38ca85b17a7fd750dce2507a3f57dfc1d1edcf09abb33f1b8c134df0",
+      "source_url": "https://nominatim.openstreetmap.org/"
+    },
+    "cells_res9": {
+      "bytes": 2064384,
+      "extra": {
+        "cells": 5670,
+        "dem": {
+          "max_m": 638.653076171875,
+          "median_m": 548.21728515625,
+          "min_m": 451.5,
+          "pixels": 1512573,
+          "valid_fraction": 1.0,
+          "warnings": []
+        },
+        "low_coverage_cells": 0,
+        "max_weather_point_dist_km": 7.11
+      },
+      "licence": "derived from Copernicus DEM and OSM (see their licences)",
+      "name": "cells_res9",
+      "path": "processed/cells_res9.gpkg",
+      "python": "3.13.3",
+      "retrieved_at": "2026-11-08T13:20:09.193890+00:00",
+      "sha256": "8547b6a28ed4baa1d7f93f8a450ffd76d79e4d95730eb97d9c72950fb4a1782b",
+      "source_url": "derived: DEM + boundary"
+    },
+    "dem_cop30": {
+      "bytes": 4844619,
+      "extra": {
+        "bounds": [
+          78.22870669999999,
+          17.281637699999997,
+          78.6323912,
+          17.5708321
+        ],
+        "resolution_m": 30,
+        "stats": {
+          "max_m": 638.653076171875,
+          "median_m": 548.21728515625,
+          "min_m": 451.5,
+          "pixels": 1512573,
+          "valid_fraction": 1.0,
+          "warnings": []
+        },
+        "tiles": [
+          "Copernicus_DSM_COG_10_N17_00_E078_00_DEM.tif"
+        ]
+      },
+      "licence": "Copernicus DEM licence (free for general public; attribute ESA/Copernicus) - see registry.opendata.aws/copernicus-dem",
+      "name": "dem_cop30",
+      "path": "raw/dem/dem_cop30.tif",
+      "python": "3.13.3",
+      "retrieved_at": "2026-10-21T16:23:41.921662+00:00",
+      "sha256": "1b07fbf53b5452ed0851049da8992aaff1df9891232e59649214df9cef9453c7",
+      "source_url": "https://registry.opendata.aws/copernicus-dem/"
+    },
+    "roads": {
+      "bytes": 63115264,
+      "extra": {
+        "edges": 359535,
+        "largest_component_fraction": 1.0,
+        "nodes": 138472,
+        "warnings": []
+      },
+      "licence": "ODbL 1.0 - (c) OpenStreetMap contributors",
+      "name": "roads",
+      "path": "raw/roads/roads.gpkg",
+      "python": "3.13.3",
+      "retrieved_at": "2026-10-22T14:31:51.753286+00:00",
+      "sha256": "f80e3eceddc90a15a07c4be8fd617443e0aff50680879712f8eb54453e05a19a",
+      "source_url": "https://www.openstreetmap.org/"
+    }
+  }
+}

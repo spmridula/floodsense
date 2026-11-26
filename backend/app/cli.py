@@ -112,6 +112,22 @@ def cmd_fetch_roads() -> int:
     return 0
 
 
+def cmd_fetch_water() -> int:
+    from app.geo.water import OSM_LICENCE, FetchError, fetch_water
+    geom, src = _geometry()
+    out = _paths()["raw"] / "water" / "water.gpkg"
+    print(f"Downloading water polygons for {src}...")
+    try:
+        info = fetch_water(geom, out)
+    except FetchError as exc:
+        print(f"FAILED: {exc}"); return 1
+    print(f"Water layer: {info}")
+    from app.geo.provenance import record_artifact
+    p = _paths()
+    record_artifact(p["manifest"], "water", out, "https://www.openstreetmap.org/", OSM_LICENCE, info, base_dir=p["base"])
+    return 0
+
+
 def cmd_build_cells(resolution: int) -> int:
     from app.geo.cells import build_cells
     from app.geo.grid import weather_grid
@@ -122,8 +138,16 @@ def cmd_build_cells(resolution: int) -> int:
         print("FAILED: no DEM found. Run fetch-dem first."); return 1
     geom, src = _geometry()
     out = p["processed"] / f"cells_res{resolution}.gpkg"
-    info = build_cells(dem, geom, weather_grid(s.study_area_bbox, s.weather_grid_step_deg), resolution, out)
-    print(f"Built {info['cells']} cells from {src} ({info['low_coverage_cells']} low-coverage).")
+    wfile = p["raw"] / "water" / "water.gpkg"
+    water = None
+    if wfile.exists():
+        from app.geo.water import load_water_union
+        water = load_water_union(wfile)
+    else:
+        print("  NOTE: no water layer - lakes/reservoirs will NOT be masked. Run fetch-water, then build-cells again.")
+    info = build_cells(dem, geom, weather_grid(s.study_area_bbox, s.weather_grid_step_deg), resolution, out, water)
+    print(f"Built {info['cells']} cells from {src} ({info['low_coverage_cells']} low-coverage)"
+          + (f"; {info['water_cells']} water-body cells excluded from scoring." if info["water_masked"] else "."))
     if info["max_weather_point_dist_km"] > 111 * s.weather_grid_step_deg:
         print(f"  WARNING: some cells are {info['max_weather_point_dist_km']} km from the nearest weather point - "
               "the weather grid does not cover the study geometry. Update FLOODSENSE_STUDY_AREA_BBOX.")
@@ -151,6 +175,61 @@ def cmd_cells_summary(resolution: int) -> int:
     return 0
 
 
+def cmd_risk_now(horizon: int) -> int:
+    from app.risk.engine import CellTableError
+    from app.services import risk_service as rs
+    s = get_settings()
+    try:
+        with _session() as session:
+            r = rs.run(session, s, horizon)
+    except (CellTableError, ValueError) as exc:
+        print(f"FAILED: {exc}"); return 1
+    m = r.meta
+    print(f"Model {m['model_version']} | horizon +{horizon}h ({m['horizon_status']}) | data {m['data_freshness']} | reliable={m.get('reliable')}")
+    print(f"Observation hour: {m['observation_time']} | target: {m.get('target_time')}")
+    for w in m.get("warnings", []):
+        print(f"  WARNING: {w}")
+    if r.result is None:
+        print("No scores (rainfall unavailable)."); return 0
+    print("Category counts:", r.result["category"].value_counts(dropna=False).to_dict())
+    print("Rain mm/h over cells: min %.2f  max %.2f" % (r.result["rain_mm_per_h"].min(), r.result["rain_mm_per_h"].max()))
+    dry = float(r.result["score"].max()) == 0.0
+    top = r.result.nlargest(10, "susceptibility" if dry else "score")
+    if dry:
+        print("No rain: every score is 0 (the index is rain-triggered). Showing the 10 cells with the highest TERRAIN susceptibility instead:")
+    else:
+        print("Top 10 cells by index (score is NOT a probability):")
+    for t in top.itertuples():
+        print(f"  {t.score:.3f} {t.category:9s} S={t.susceptibility:.2f} H={t.hazard:.2f}  {t.lat:.5f},{t.lon:.5f}")
+    return 0
+
+
+def cmd_risk_sensitivity(n: int, perturb: float) -> int:
+    from app.risk.engine import CellTableError, load_cell_table
+    from app.risk.evaluation import sensitivity
+    try:
+        table = load_cell_table(get_settings().cells_path)
+    except CellTableError as exc:
+        print(f"FAILED: {exc}"); return 1
+    r = sensitivity(table, n=n, perturb=perturb)
+    print(json.dumps(r, indent=2))
+    print("Reading: Spearman near 1 and a high top-decile overlap mean the ranking does not hinge on the exact weights.")
+    return 0
+
+
+def cmd_risk_backtest(path: str | None) -> int:
+    from app.risk.engine import CellTableError, load_cell_table
+    from app.risk.evaluation import backtest, load_hotspots_csv
+    path = path or str(get_settings().data_dir / "hotspots.csv")
+    try:
+        table = load_cell_table(get_settings().cells_path)
+        res = backtest(table, load_hotspots_csv(Path(path)), get_settings().cells_resolution)
+    except (CellTableError, ValueError, OSError) as exc:
+        print(f"FAILED: {exc}"); return 1
+    print(json.dumps(res, indent=2))
+    return 0
+
+
 def cmd_status() -> int:
     p = _paths()
     for label, path in [("boundary", p["raw"] / "boundary" / "boundary.geojson"), ("dem", p["raw"] / "dem"),
@@ -167,9 +246,16 @@ def main(argv: list[str] | None = None) -> int:
     b = sub.add_parser("fetch-boundary"); b.add_argument("--query", default="Hyderabad, Telangana, India")
     d = sub.add_parser("fetch-dem"); d.add_argument("--resolution", type=int, choices=[30, 90], default=30)
     sub.add_parser("fetch-roads")
+    sub.add_parser("fetch-water", help="OSM lake/reservoir/riverbank polygons (used to mask water cells)")
     c = sub.add_parser("build-cells"); c.add_argument("--resolution", type=int, default=9)
     cs = sub.add_parser("cells-summary", help="print distributions and the lowest cells of the built cell table")
     cs.add_argument("--resolution", type=int, default=9)
+    rn = sub.add_parser("risk-now", help="compute current risk from stored weather and the cell table")
+    rn.add_argument("--horizon", type=int, default=0)
+    rs_ = sub.add_parser("risk-sensitivity", help="how stable is the ranking if the weights change?")
+    rs_.add_argument("--trials", type=int, default=200); rs_.add_argument("--perturb", type=float, default=0.5)
+    rb = sub.add_parser("risk-backtest", help="compare terrain susceptibility with a CSV of known waterlogging points (lat,lon)")
+    rb.add_argument("--hotspots", default=None, help="CSV with lat,lon (default: the spots you marked on the map, data/hotspots.csv)")
     sub.add_parser("status")
     a = ap.parse_args(argv)
     try:
@@ -179,8 +265,12 @@ def main(argv: list[str] | None = None) -> int:
         if a.command == "fetch-boundary": return cmd_fetch_boundary(a.query)
         if a.command == "fetch-dem": return cmd_fetch_dem(a.resolution)
         if a.command == "fetch-roads": return cmd_fetch_roads()
+        if a.command == "fetch-water": return cmd_fetch_water()
         if a.command == "build-cells": return cmd_build_cells(a.resolution)
         if a.command == "cells-summary": return cmd_cells_summary(a.resolution)
+        if a.command == "risk-now": return cmd_risk_now(a.horizon)
+        if a.command == "risk-sensitivity": return cmd_risk_sensitivity(a.trials, a.perturb)
+        if a.command == "risk-backtest": return cmd_risk_backtest(a.hotspots)
         if a.command == "status": return cmd_status()
     except ImportError as exc:
         print(f"{GEO_HINT}\n({exc})"); return 2
