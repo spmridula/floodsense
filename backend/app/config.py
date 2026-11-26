@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     env: Literal["local", "production"] = "local"
     log_level: str = "INFO"
+    data_dir: Path = REPO_ROOT / "data"
     database_url: str = f"sqlite:///{(REPO_ROOT / 'data' / 'floodsense.db').as_posix()}"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
@@ -33,8 +34,19 @@ class Settings(BaseSettings):
     open_meteo_base_url: str = "https://api.open-meteo.com/v1"
     http_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     http_max_retries: int = Field(default=3, ge=0, le=6)
+    weather_grid_step_deg: float = Field(default=0.1, ge=0.05, le=0.5, description="Spacing of weather sample points (deg)")
+    weather_past_hours: int = Field(default=24, ge=1, le=48)  # 24 h needed for the IMD-style accumulation
+    weather_forecast_hours: int = Field(default=3, ge=0, le=24)
+    weather_autorefresh: bool = False
+    weather_min_refresh_seconds: int = Field(default=300, ge=60, description="Hard floor between upstream fetches")
     refresh_interval_seconds: int = Field(default=900, ge=300, description="Never poll faster than 5 min")
     stale_after_seconds: int = Field(default=3 * 3600, ge=600)
+
+    cells_resolution: int = Field(default=9, ge=6, le=11)
+
+    @property
+    def cells_path(self) -> Path:
+        return self.data_dir / "processed" / f"cells_res{self.cells_resolution}.gpkg"
 
     @model_validator(mode="after")
     def _validate(self) -> "Settings":

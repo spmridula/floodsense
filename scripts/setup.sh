@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 python3 -m venv backend/.venv
 backend/.venv/bin/python -m pip install --quiet --upgrade pip
-backend/.venv/bin/python -m pip install --quiet -r backend/requirements.txt
+backend/.venv/bin/python -m pip install --quiet -r backend/requirements-geo.txt
 [ -f .env ] || cp .env.example .env
 (cd backend && .venv/bin/python -m app.cli init-db)
 (cd frontend && npm ci)

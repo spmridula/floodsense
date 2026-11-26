@@ -1,0 +1,37 @@
+{
+  "elevation_m_mean": {
+    "kind": "derived_from_dem",
+    "unit": "m",
+    "limitation": "Surface elevation (buildings/trees included), ~30 m grid"
+  },
+  "elevation_m_min": {
+    "kind": "derived_from_dem",
+    "unit": "m",
+    "limitation": "Lowest sampled pixel in the cell; noise-sensitive"
+  },
+  "slope_deg_mean": {
+    "kind": "derived_from_dem",
+    "unit": "deg",
+    "limitation": "Slope of the surface model; building edges inflate it"
+  },
+  "rel_elev_m_mean": {
+    "kind": "proxy",
+    "unit": "m",
+    "limitation": "Cell elevation minus ~1 km neighbourhood mean; negative = lower than surroundings. A low-lying proxy, not drainage."
+  },
+  "depression_depth_m_max": {
+    "kind": "proxy",
+    "unit": "m",
+    "limitation": "Depth of the deepest closed depression in the cell after filling a SURFACE model; buildings create spurious pits and real drains/culverts are invisible"
+  },
+  "flow_acc_log10_m2_max": {
+    "kind": "proxy",
+    "unit": "log10(m2)",
+    "limitation": "Largest D8 upslope area in the cell on a surface model; shows where surface water would concentrate, ignores storm drains"
+  },
+  "n_samples": {
+    "kind": "quality",
+    "unit": "count",
+    "limitation": "DEM pixels sampled in the cell"
+  }
+}

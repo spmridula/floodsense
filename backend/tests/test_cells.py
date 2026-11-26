@@ -37,10 +37,10 @@ def test_build_cells_end_to_end_on_synthetic_dem(tmp_path):
     info = build_cells(tmp_path / "dem.tif", geom, pts, 9, out)
     gdf = gpd.read_file(out)
     assert info["cells"] == len(gdf) and gdf["cell_id"].is_unique
-    assert {"elevation_m_mean", "slope_deg_mean", "rel_elev_m_mean", "weather_point_id", "weather_point_dist_km", "low_coverage"} <= set(gdf.columns)
+    assert {"elevation_m_mean", "slope_deg_mean", "rel_elev_m_mean", "depression_depth_m_max", "flow_acc_log10_m2_max", "weather_point_id", "weather_point_dist_km", "low_coverage"} <= set(gdf.columns)
     cov, unc = gdf[~gdf.low_coverage], gdf[gdf.low_coverage]
     assert len(cov) > 0 and len(unc) > 0 and info["low_coverage_cells"] == len(unc)
-    feats = ["elevation_m_mean", "elevation_m_min", "slope_deg_mean", "rel_elev_m_mean"]
+    feats = ["elevation_m_mean", "elevation_m_min", "slope_deg_mean", "rel_elev_m_mean", "depression_depth_m_max", "flow_acc_log10_m2_max"]
     assert unc[feats].isna().all().all()                            # thin/no data -> NaN, never invented
     assert cov[feats].notna().all().all() and (cov["n_samples"] >= 5).all()
     assert cov["elevation_m_mean"].between(500, 600).all()

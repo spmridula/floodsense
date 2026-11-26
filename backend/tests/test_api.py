@@ -57,4 +57,4 @@ def test_validation_error_schema(client):
 def test_cli_init_db(env, capsys):
     from app.cli import main
     assert main(["init-db"]) == 0
-    assert "Seeded 6" in capsys.readouterr().out
+    assert "Seeded 7" in capsys.readouterr().out

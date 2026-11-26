@@ -8,7 +8,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import DateTime, Integer, String, Text, create_engine, event, text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
@@ -48,6 +48,28 @@ class IngestionRun(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)  # success | failed
     record_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class WeatherObservation(Base):
+    """Hourly precipitation per sample point.
+
+    valid_time  = END of the hour the value covers (provider: 'sum of the preceding hour'), UTC.
+    fetched_at  = when WE retrieved it. Kept separate from valid_time on purpose.
+    is_forecast = valid_time was in the future at fetch time (model forecast, not a past estimate).
+    NOTE: values are modelled grid estimates, not rain-gauge measurements.
+    """
+    __tablename__ = "weather_observations"
+    __table_args__ = (UniqueConstraint("source", "point_id", "valid_time", name="uq_weather_point_time"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    point_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    lat: Mapped[float] = mapped_column(Float, nullable=False)
+    lon: Mapped[float] = mapped_column(Float, nullable=False)
+    valid_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    precipitation_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_forecast: Mapped[bool] = mapped_column(Integer, nullable=False, default=0)
+    run_id: Mapped[int | None] = mapped_column(ForeignKey("ingestion_runs.id"), nullable=True)
 
 
 _engines: dict[str, Engine] = {}

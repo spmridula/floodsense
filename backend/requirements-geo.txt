@@ -1,0 +1,13 @@
+# Geospatial stack (Phase 2+). Versions verified on Python 3.12 / Linux. Windows/macOS wheels exist for
+# these packages in general, but the exact pins have NOT yet been verified on your machine.
+-r requirements.txt
+pandas==3.0.6
+shapely==2.2.0
+h3==4.5.0
+rasterio==1.5.2
+scipy==1.18.1
+pyproj==3.8.0
+geopandas==1.2.0
+pyogrio==0.13.0
+osmnx==2.1.1
+networkx==3.7
